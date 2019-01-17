@@ -352,4 +352,4 @@ if __name__ == '__main__':
                          dropout=float(args.dropout), stateful=args.stateful, epochs_step_training=args.epochs_step_training,
                          optimiser=args.optimiser,add_name=args.name, window_type=args.window_type)
 
-    #hallo
+    #测试是否有反应
