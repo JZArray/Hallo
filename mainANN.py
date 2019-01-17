@@ -351,3 +351,5 @@ if __name__ == '__main__':
                          neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
                          dropout=float(args.dropout), stateful=args.stateful, epochs_step_training=args.epochs_step_training,
                          optimiser=args.optimiser,add_name=args.name, window_type=args.window_type)
+
+   #hallo
