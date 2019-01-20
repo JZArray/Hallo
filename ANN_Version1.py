@@ -11,7 +11,7 @@ import os
 import datetime as dt
 import time
 import argparse
-#import numpy as np
+# import numpy as np
 import logging
 
 parser = argparse.ArgumentParser(description="Trainiere ein neues LSTM Netz",
@@ -26,15 +26,15 @@ parser.add_argument('-L', '--num-layer', type=int, default=1,
 parser.add_argument('-N', '--num-neurons', type=int, default=200,
                     help='Anzahl der Neuronen je LSTM-Layer')
 
-parser.add_argument('-B', '--batch-size', type=int, default=2**10,
+parser.add_argument('-B', '--batch-size', type=int, default=2 ** 10,
                     help='Batch Größe')
 
 parser.add_argument('-FG', '--fit-generator', default=True,
                     help='Training per Generator oder eigener Fitfunktion')
 
-parser.add_argument('-F', '--front-node', type=int, default=3, choices=[1,2,3],
+parser.add_argument('-F', '--front-node', type=int, default=3, choices=[1, 2, 3],
                     help='Wo und mit welchen Daten soll die Berechnung ausgeführt werden.')
-                    
+
 parser.add_argument('-P', '--path',
                     help='Alternativ zum Front-Node Argument kann auch der Path manulell '
                          'übergeben werden.')
@@ -77,7 +77,7 @@ parser.add_argument('-WT', '--window-type', default="U",
                          'U - Spannung (rms_u0, rms_u1, rms_u2, rms_u3)\n'
                          'F - Frequenz (freq0)')
 
-parser.add_argument('-GPU', '--GPU', type=int, default=1, choices=[1,2],
+parser.add_argument('-GPU', '--GPU', type=int, default=1, choices=[1, 2],
                     help='Welche GPU')
 
 parser.add_argument('-D', '--dropout', type=float, default=0.0,
@@ -96,8 +96,9 @@ from load_data import LoadData as LoadData
 import LSTMNet as net
 import DataGenerator as generator
 
+
 def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
-         batch_size=128, neurons=200, gpu_training=False, prognosis_type="I", norm="ARENA", file_length=None,
+         batch_size=128, neurons=200, gpu_training=False, prognosis_type="I", norm=None, file_length=None,
          activation="sigmoid", dropout=0, kernel_initializer="random_uniform", bias_initializer="zeros",
          stateful=False, epochs_step_training=0, optimiser='sdg', add_name='', window_type='I'):
     """"Main Funktion des neuronalen Netzes."""
@@ -112,12 +113,14 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
         pass
 
     # Um das Trainig zu verkürzen kann dem Skrift ein File_Length Faktoritgegeben werden
-    if (file_length!=None):
+    if (file_length != None):
         files = files[:file_length]
 
-    boolean_norm_data = True
-    file_type = "hdf"
-    data_file_length = 86400
+    boolean_norm_data = False
+    file_type = "csv"
+    #data_file_length = 86400
+    data_file_length = 200
+
 
     # Configuration
     # Zu beachtende Spalten:
@@ -128,7 +131,8 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
         prediction_columns = ['rms_i0', 'rms_i1', 'rms_i2', 'rms_i3']
 
     elif prognosis_type == "F":
-        prediction_columns = ['freq0']
+        #prediction_columns = ['freq0']
+        prediction_columns = ['TR1_1_DftL1']
 
     elif prognosis_type == "U":
         prediction_columns = ['rms_u1', 'rms_u2', 'rms_u3']
@@ -143,12 +147,12 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
     else:
         prediction_columns = [prognosis_type]
 
-
     if window_type == "I":
         columns = ['rms_i0', 'rms_i1', 'rms_i2', 'rms_i3']
 
     elif window_type == "F":
-        columns = ['freq0']
+        #columns = ['freq0']
+        columns = ['TR1_1_DftL1']
 
     elif window_type == "U":
         columns = ['rms_u1', 'rms_u2', 'rms_u3']
@@ -166,9 +170,9 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
                     optimiser=optimiser)
 
     # unterteile in Trainigsdaten, Evaluierungs und Testdaten
-    trainLength = int(len(files)*0.6) # werden zum Training genutzt
-    evaluLength = int(len(files) * 0.2) # werden zum evaluieren des Netzes Keras intern genutzt
-    testLength = int(len(files) * 0.2) # werden später zum testen genutzt
+    trainLength = int(len(files) * 0.6)  # werden zum Training genutzt
+    evaluLength = int(len(files) * 0.2)  # werden zum evaluieren des Netzes Keras intern genutzt
+    testLength = int(len(files) * 0.2)  # werden später zum testen genutzt
 
     # PrintOut um die Struktur des erstellten Modells zu zeigen
     model.getModel().summary()
@@ -180,21 +184,31 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
           "\n - Prognoseart: \t\t" + prognosis_type, "\n - Optimierer: \t\t\t" + optimiser)
     print("_" * 65)
 
-    name =  dt.datetime.strftime(dt.datetime.now(), '%Y%m%d')+ "_"+ add_name + "_" + prognosis_type + "_"
+    name = dt.datetime.strftime(dt.datetime.now(), '%Y%m%d') + "_" + add_name + "_" + prognosis_type + "_"
 
     # Abfrage ob mit dem Datengenerator gearbeitet werden soll oder nicht
     model.train_multi(generator.generate_data_all_files(files=files[:trainLength], columns=columns,
-                                                prediction_columns=prediction_columns, prediction_timeteps=p_timesteps,
-                                                window_timeteps=w_timesteps, batch_size=batch_size, type="training",
-                                                progress_tune=args.progress_tune, LoadData=LoadData, data_path=data_path,
-                                                csv_path=csv_path, norm=norm, normData=boolean_norm_data,filetype=file_type),
-                      generator.generate_data_all_files(files=files[trainLength:trainLength+evaluLength], columns=columns,
-                                                prediction_columns=prediction_columns, prediction_timeteps=p_timesteps,
-                                                window_timeteps=w_timesteps, batch_size=batch_size, type="validation",
-                                                progress_tune=args.progress_tune, LoadData=LoadData, data_path=data_path,
-                                                csv_path=csv_path, norm=norm, normData=boolean_norm_data,filetype=file_type),
-                      epochs=epochs, steps_per_epoch=int(data_file_length/batch_size)*len(files[:trainLength]),
-                      validation_steps=int(data_file_length/batch_size)*len(files[trainLength:trainLength+evaluLength]),
+                                                        prediction_columns=prediction_columns,
+                                                        prediction_timeteps=p_timesteps,
+                                                        window_timeteps=w_timesteps, batch_size=batch_size,
+                                                        type="training",
+                                                        progress_tune=args.progress_tune, LoadData=LoadData,
+                                                        data_path=data_path,
+                                                        csv_path=csv_path, norm=norm, normData=boolean_norm_data,
+                                                        filetype=file_type),
+                      generator.generate_data_all_files(files=files[trainLength:trainLength + evaluLength],
+                                                        columns=columns,
+                                                        prediction_columns=prediction_columns,
+                                                        prediction_timeteps=p_timesteps,
+                                                        window_timeteps=w_timesteps, batch_size=batch_size,
+                                                        type="validation",
+                                                        progress_tune=args.progress_tune, LoadData=LoadData,
+                                                        data_path=data_path,
+                                                        csv_path=csv_path, norm=norm, normData=boolean_norm_data,
+                                                        filetype=file_type),
+                      epochs=epochs, steps_per_epoch=int(data_file_length / batch_size) * len(files[:trainLength]),
+                      validation_steps=int(data_file_length / batch_size) * len(
+                          files[trainLength:trainLength + evaluLength]),
                       worker=1, use_multiprocessing=False)
 
     logging.info("Ende des Trainings um: " + str(dt.datetime.now()))
@@ -211,30 +225,42 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
         overview_name = "NN_Overview.csv"
 
     old_overview = pd.read_csv(csv_path + overview_name)
-    try:
-        old_overview = old_overview.drop('Unnamed: 0', axis=1)
-    except KeyError:
-        pass
+    # old_overview = pd.read_csv(overview_name)
+    # try:
+    #     old_overview = old_overview.drop('Unnamed: 0', axis=1)
+    # except KeyError:
+    #     pass
 
     end_time = dt.datetime.now()
     runtime = str(end_time - start_time)
 
-    ov_I = pd.DataFrame(data=[[name, runtime, start_time, end_time, optimiser, dropout, file_length, columns, prediction_columns,
-                               epochs, neurons, layer, batch_size, w_timesteps, p_timesteps, files[-testLength:]]],
-                        columns=['name', 'runtime', 'starttime', 'endtime', 'optimiser', 'dropout', 'file_size', 'feature',
-                                 'prediction', 'epochs', 'neuronen', 'layer', 'batch_size', 'history_window', 'prediction_window',
-                                 'test_daten'])
+    ov_I = pd.DataFrame(
+        data=[[name, runtime, start_time, end_time, optimiser, dropout, file_length, columns, prediction_columns,
+               epochs, neurons, layer, batch_size, w_timesteps, p_timesteps, files[-testLength:]]],
+        columns=['name', 'runtime', 'starttime', 'endtime', 'optimiser', 'dropout', 'file_size', 'feature',
+                 'prediction', 'epochs', 'neuronen', 'layer', 'batch_size', 'history_window', 'prediction_window',
+                 'test_daten'])
 
     ov_II = pd.DataFrame(data=[history_data[-1:].values[0]],
                          columns=['loss', 'val_loss', 'mse', 'val_mse', 'mae', 'val_mae',
                                   'mape', 'val_mape'])
 
     overview = pd.concat([ov_I, ov_II], axis=1)
-    new_overview = pd.concat([old_overview, overview], axis=0, ignore_index=True)
-    new_overview[['name', 'runtime', 'starttime', 'endtime', 'optimiser','dropout', 'file_size', 'feature',
+    #new_overview = pd.concat([old_overview, overview], axis=0, ignore_index=True)
+    new_overview = pd.concat([overview], axis=0, ignore_index=True)
+    # new_overview[['name', 'runtime', 'starttime', 'endtime', 'optimiser', 'dropout', 'file_size', 'feature',
+    #               'prediction', 'epochs', 'neuronen', 'layer', 'batch_size', 'history_window', 'prediction_window',
+    #               'test_daten', 'loss', 'val_loss', 'mse', 'val_mse', 'mae', 'val_mae', 'mape', 'val_mape',
+    #               'mse_test', 'mae_test', 'mape_test', 'rmse_test']].to_csv(csv_path + overview_name,
+    #                                                                         float_format='%.4f')
+    # new_overview[['name', 'runtime', 'starttime', 'endtime', 'optimiser', 'dropout', 'file_size', 'feature',
+    #               'prediction', 'epochs', 'neuronen', 'layer', 'batch_size', 'history_window', 'prediction_window',
+    #               'test_daten', 'loss', 'val_loss', 'mse', 'val_mse', 'mae', 'val_mae', 'mape', 'val_mape',
+    #               'mse_test', 'mae_test', 'mape_test', 'rmse_test']].to_csv(overview_name,
+    #                                                                         float_format='%.4f')
+    new_overview[['name', 'runtime', 'starttime', 'endtime', 'optimiser', 'dropout', 'file_size', 'feature',
                   'prediction', 'epochs', 'neuronen', 'layer', 'batch_size', 'history_window', 'prediction_window',
-                  'test_daten', 'loss', 'val_loss', 'mse', 'val_mse', 'mae', 'val_mae', 'mape', 'val_mape',
-                  'mse_test', 'mae_test', 'mape_test', 'rmse_test']].to_csv(csv_path + overview_name,
+                  'test_daten', 'loss', 'val_loss', 'mse', 'val_mse', 'mae', 'val_mae', 'mape', 'val_mape']].to_csv( overview_name,
                                                                             float_format='%.4f')
 
     return model, name
@@ -243,46 +269,49 @@ def main(data_path, csv_path, p_timesteps, w_timesteps=1, layer=1, epochs=10,
 if __name__ == '__main__':
     args = parser.parse_args()
     # Falls das Skript verzögert werden muss
-    #time.sleep(4000)
+    # time.sleep(4000)
 
-    #os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     # The GPU id to use, usually either "0" or "1"
-    #os.environ["CUDA_VISIBLE_DEVICES"] = str(args.GPU)
+    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.GPU)
 
     data_path = ""
     csv_path = ""
 
-    if int(args.front_node) == 1:
+    if args.front_node == 1:
         '''Config: Server FrondNode mit ARENA Daten'''
-        data_path = "/share/Shared/DATEN_AUS_ARENA/Trafo1/h5/"
-        csv_path = "/home/fst/masterarbeit/Share/Code/src/Felix/Data/"
+        # data_path = "/share/Shared/DATEN_AUS_ARENA/Trafo1/h5/"
+        # csv_path = "/home/fst/masterarbeit/Share/Code/src/Felix/Data/"
+        data_path = "/Users/Array/PycharmProjects/Bachelor/Daten/20180720_E_TR1_1_DftL1C02/"
+        csv_path = None
 
-    elif int(args.front_node) == 2:
+    elif args.front_node == 2:
         '''Config: Sinus Testdaten '''
         data_path = '/share/Shared/SinusData/'
-        #data_path = "/Users/felixstoeckmann/Documents/Studium/Master/Masterarbeit/TestDaten/TestData/"
+        # data_path = "/Users/felixstoeckmann/Documents/Studium/Master/Masterarbeit/TestDaten/TestData/"
         csv_path = "/share/Shared/masterarbeit/Share/Code/src/Felix/Data/"
 
-    elif int(args.front_node) == 3:
+    elif args.front_node == 3:
         '''Config: Server CmputeNode '''
         print('Config: Server CmputeNode')
         data_path = "/share/Shared/DATEN_AUS_ARENA/Trafo1/h5/"
         csv_path = "/share/Shared/masterarbeit/Share/Code/src/Felix/Data/"
         print(data_path)
 
-    if int(args.grid) == 1:
-        for n in[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
+    if args.grid == 1:
+        for n in [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
             # Neuronen Grid
             for i in [50, 100, 150]:
                 # Epochen grid
-                model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps, w_timesteps=args.window_timesteps,
-                               layer=args.num_layer, epochs=i, batch_size=args.batch_size,
-                               neurons=n, prognosis_type=args.prognosis_type, file_length=args.file_length,
-                               dropout=float(args.dropout), stateful=args.stateful,
-                               epochs_step_training=args.epochs_step_training,
-                               optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
+                model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps,
+                                   w_timesteps=args.window_timesteps,
+                                   layer=args.num_layer, epochs=i, batch_size=args.batch_size,
+                                   neurons=n, prognosis_type=args.prognosis_type, file_length=args.file_length,
+                                   dropout=float(args.dropout), stateful=args.stateful,
+                                   epochs_step_training=0,
+                                   optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
 
-    elif int(args.grid) == 2:
+    elif args.grid == 2:
         for n in [10, 20, 30]:
             # Neuronen Grid
             for i in [1, 2, 3, 4]:
@@ -292,10 +321,10 @@ if __name__ == '__main__':
                                    layer=i, epochs=args.num_epochs, batch_size=args.batch_size,
                                    neurons=n, prognosis_type=args.prognosis_type, file_length=args.file_length,
                                    dropout=float(args.dropout), stateful=args.stateful,
-                                   epochs_step_training=args.epochs_step_training,
+                                   epochs_step_training=0,
                                    optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
 
-    elif int(args.grid) == 3:
+    elif args.grid == 3:
         for n in [64, 128, 256, 512, 1024]:
             # Neuronen Grid
             for i in [1]:
@@ -303,52 +332,61 @@ if __name__ == '__main__':
                 model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps,
                                    w_timesteps=args.window_timesteps,
                                    layer=i, epochs=args.num_epochs, batch_size=n,
-                                   neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
+                                   neurons=args.num_neurons, prognosis_type=args.prognosis_type,
+                                   file_length=args.file_length,
                                    dropout=float(args.dropout), stateful=args.stateful,
-                                   epochs_step_training=args.epochs_step_training,
+                                   epochs_step_training=0,
                                    optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
 
-    elif int(args.grid) == 4:
-        for n in[20]:
+    elif args.grid == 4:
+        for n in [20]:
             # Spezischisches Suchen nach dem Minumum in der Epochenanzahl
             for i in [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 4000]:
                 # Epochen grid
-                model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps, w_timesteps=args.window_timesteps,
-                               layer=args.num_layer, epochs=i, batch_size=args.batch_size,
-                               neurons=n, prognosis_type=args.prognosis_type, file_length=args.file_length,
-                               dropout=float(args.dropout), stateful=args.stateful,
-                               epochs_step_training=args.epochs_step_training,
-                               optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
+                model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps,
+                                   w_timesteps=args.window_timesteps,
+                                   layer=args.num_layer, epochs=i, batch_size=args.batch_size,
+                                   neurons=n, prognosis_type=args.prognosis_type, file_length=args.file_length,
+                                   dropout=float(args.dropout), stateful=args.stateful,
+                                   epochs_step_training=0,
+                                   optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
 
-    elif int(args.grid) == 5:
+    elif args.grid == 5:
         # Gridsearch zur untersuchung des Neuronen Dropout
         for i in [0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5]:
             # Dropout grid
-            model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps, w_timesteps=args.window_timesteps,
-                         layer=args.num_layer, epochs=args.num_epochs, batch_size=args.batch_size,
-                         neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
-                         dropout=float(i), stateful=args.stateful, epochs_step_training=args.epochs_step_training,
-                         optimiser=args.optimiser,add_name=args.name+str(i), window_type=args.window_type)
+            model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps,
+                               w_timesteps=args.window_timesteps,
+                               layer=args.num_layer, epochs=args.num_epochs, batch_size=args.batch_size,
+                               neurons=args.num_neurons, prognosis_type=args.prognosis_type,
+                               file_length=args.file_length,
+                               dropout=float(i), stateful=args.stateful, epochs_step_training=0,
+                               optimiser=args.optimiser, add_name=args.name + str(i), window_type=args.window_type)
 
-    elif int(args.grid) == 6:
+    elif args.grid == 6:
         """Elif für eine variation des Sinus Noise Datasets"""
-        for n in ['0.00','0.05','0.10','0.15','0.20','0.30','0.50','0.80']:
-            new_data_path = data_path + "noise_" + n +"/"
+        for n in ['0.00', '0.05', '0.10', '0.15', '0.20', '0.30', '0.50', '0.80']:
+            new_data_path = data_path + "noise_" + n + "/"
             # Neuronen Grid
             for i in [50, 80, 100, 150]:
-                print(n +" : " + str(i))
+                print(n + " : " + str(i))
                 # Epcohen grid
-                model, name = main(new_data_path, csv_path, p_timesteps=args.predicting_timesteps, w_timesteps=args.window_timesteps,
-                               layer=args.num_layer, epochs=i, batch_size=args.batch_size,
-                               neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
-                               dropout=float(args.dropout), stateful=args.stateful,
-                               epochs_step_training=args.epochs_step_training,norm="sinus",
-                               optimiser=args.optimiser, add_name=n, window_type=args.window_type)
+                model, name = main(new_data_path, csv_path, p_timesteps=args.predicting_timesteps,
+                                   w_timesteps=args.window_timesteps,
+                                   layer=args.num_layer, epochs=i, batch_size=args.batch_size,
+                                   neurons=args.num_neurons, prognosis_type=args.prognosis_type,
+                                   file_length=args.file_length,
+                                   dropout=float(args.dropout), stateful=args.stateful,
+                                   epochs_step_training=0, norm="sinus",
+                                   optimiser=args.optimiser, add_name=n, window_type=args.window_type)
 
     else:
-        model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps, w_timesteps=args.window_timesteps,
-                         layer=args.num_layer, epochs=args.num_epochs, batch_size=args.batch_size,
-                         neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
-                         dropout=float(args.dropout), stateful=args.stateful, epochs_step_training=args.epochs_step_training,
-                         optimiser=args.optimiser,add_name=args.name, window_type=args.window_type)
+        model, name = main(data_path, csv_path, p_timesteps=args.predicting_timesteps,
+                           w_timesteps=args.window_timesteps,
+                           layer=args.num_layer, epochs=args.num_epochs, batch_size=args.batch_size,
+                           neurons=args.num_neurons, prognosis_type=args.prognosis_type, file_length=args.file_length,
+                           dropout=float(args.dropout), stateful=args.stateful,
+                           epochs_step_training=0,
+                           optimiser=args.optimiser, add_name=args.name, window_type=args.window_type)
 
+#/Users/Array/PycharmProjects/Bachelor/LSTM/ANN_Version1.py -E 5 -N 20 -B 64 -F 1 -GR 7 -PT TR1_1_DftL1 -WT TR1_1_DftL1
